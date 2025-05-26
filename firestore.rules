@@ -1,0 +1,93 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+             resource.data.role in ['admin', 'super_admin'];
+    }
+    
+    function isAdminOrModerator() {
+      return isAuthenticated() && 
+             resource.data.role in ['admin', 'super_admin', 'moderator'];
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Users collection
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId) || isAdmin();
+    }
+    
+    // Jobs collection
+    match /jobs/{jobId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update: if isOwner(resource.data.userId) || isAdminOrModerator();
+      allow delete: if isOwner(resource.data.userId) || isAdmin();
+    }
+    
+    // Events collection
+    match /events/{eventId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update: if isOwner(resource.data.userId) || isAdminOrModerator();
+      allow delete: if isOwner(resource.data.userId) || isAdmin();
+    }
+    
+    // Restaurants collection
+    match /restaurants/{restaurantId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update: if isOwner(resource.data.userId) || isAdminOrModerator();
+      allow delete: if isOwner(resource.data.userId) || isAdmin();
+    }
+    
+    // Cafes collection
+    match /cafes/{cafeId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update: if isOwner(resource.data.userId) || isAdminOrModerator();
+      allow delete: if isOwner(resource.data.userId) || isAdmin();
+    }
+    
+    // Reports collection
+    match /reports/{reportId} {
+      allow read: if isAdminOrModerator();
+      allow create: if isAuthenticated();
+      allow update: if isAdminOrModerator();
+      allow delete: if isAdmin();
+    }
+    
+    // Notifications collection
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    
+    // Settings collection
+    match /settings/{settingId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    
+    // Categories collection
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    // Analytics collection
+    match /analytics/{analyticsId} {
+      allow read: if isAdminOrModerator();
+      allow write: if isAdmin();
+    }
+  }
+}

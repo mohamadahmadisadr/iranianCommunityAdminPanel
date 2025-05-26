@@ -1,0 +1,69 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'super_admin'];
+    }
+    
+    function isAdminOrModerator() {
+      return isAuthenticated() && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'super_admin', 'moderator'];
+    }
+    
+    function isValidImageFile() {
+      return request.resource.contentType.matches('image/.*');
+    }
+    
+    function isValidFileSize() {
+      return request.resource.size < 5 * 1024 * 1024; // 5MB
+    }
+    
+    // Admin uploads
+    match /admin/{allPaths=**} {
+      allow read, write: if isAdmin();
+    }
+    
+    // Job images
+    match /jobs/{jobId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdminOrModerator() && isValidImageFile() && isValidFileSize();
+    }
+    
+    // Event images
+    match /events/{eventId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdminOrModerator() && isValidImageFile() && isValidFileSize();
+    }
+    
+    // Restaurant images
+    match /restaurants/{restaurantId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdminOrModerator() && isValidImageFile() && isValidFileSize();
+    }
+    
+    // Cafe images
+    match /cafes/{cafeId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdminOrModerator() && isValidImageFile() && isValidFileSize();
+    }
+    
+    // User profile images
+    match /users/{userId}/profile/{allPaths=**} {
+      allow read: if true;
+      allow write: if (request.auth.uid == userId || isAdmin()) && 
+                      isValidImageFile() && isValidFileSize();
+    }
+    
+    // Temporary uploads
+    match /temp/{userId}/{allPaths=**} {
+      allow read, write: if request.auth.uid == userId && 
+                            isValidImageFile() && isValidFileSize();
+    }
+  }
+}
