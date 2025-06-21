@@ -1,8 +1,13 @@
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
+import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
+import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
 import { DATE_FORMATS } from './constants';
 
+// Initialize dayjs plugins
 dayjs.extend(relativeTime);
+dayjs.extend(isSameOrBefore);
+dayjs.extend(isSameOrAfter);
 
 // Date formatting utilities
 export const formatDate = (date, format = DATE_FORMATS.DISPLAY) => {
@@ -23,6 +28,79 @@ export const isDateInFuture = (date) => {
   return dayjs(date).isAfter(dayjs());
 };
 
+// Serialize dates for Redux store
+export const serializeDates = (obj) => {
+  if (!obj) return obj;
+  
+  if (obj instanceof Date) {
+    return obj.toISOString();
+  }
+  
+  if (Array.isArray(obj)) {
+    return obj.map(item => serializeDates(item));
+  }
+  
+  if (typeof obj === 'object') {
+    return Object.keys(obj).reduce((acc, key) => {
+      const value = obj[key];
+      
+      // Handle Firestore Timestamp
+      if (value && typeof value.toDate === 'function') {
+        acc[key] = value.toDate().toISOString();
+      } else if (value instanceof Date) {
+        acc[key] = value.toISOString();
+      } else if (typeof value === 'object' && value !== null) {
+        acc[key] = serializeDates(value);
+      } else {
+        acc[key] = value;
+      }
+      
+      return acc;
+    }, {});
+  }
+  
+  return obj;
+};
+
+
+
+// Convert various timestamp formats to Date objects
+export const convertTimestamp = (timestamp) => {
+  try {
+    if (!timestamp) return null;
+    
+    // Handle Firestore Timestamp
+    if (timestamp.toDate instanceof Function) {
+      return timestamp.toDate();
+    }
+    
+    // Handle Date objects
+    if (timestamp instanceof Date) {
+      return isNaN(timestamp.getTime()) ? null : timestamp;
+    }
+    
+    // Handle numbers (Unix timestamps)
+    if (typeof timestamp === 'number') {
+      // Check if timestamp is in seconds (Firestore) or milliseconds (JavaScript)
+      const date = new Date(timestamp < 1000000000000 ? timestamp * 1000 : timestamp);
+      return isNaN(date.getTime()) ? null : date;
+    }
+    
+    // Handle string timestamps
+    if (typeof timestamp === 'string') {
+      const date = new Date(timestamp);
+      return isNaN(date.getTime()) ? null : date;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error converting timestamp:', error);
+    return null;
+  }
+};
+
+
+
 // String utilities
 export const capitalizeFirst = (str) => {
   if (!str) return '';
@@ -31,8 +109,8 @@ export const capitalizeFirst = (str) => {
 
 export const capitalizeWords = (str) => {
   if (!str) return '';
-  return str.replace(/\w\S*/g, (txt) => 
-    txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
+  return str.replace(/\w\S*/g, (txt) =>
+    txt.charAt(0).toUpperCase() + txt.substring(1).toLowerCase()
   );
 };
 
@@ -224,7 +302,7 @@ export const debounce = (func, wait) => {
 
 // Generate random ID
 export const generateId = () => {
-  return Math.random().toString(36).substr(2, 9);
+  return Math.random().toString(36).substring(2, 11);
 };
 
 // Deep clone utility
@@ -237,6 +315,8 @@ export default {
   formatRelativeTime,
   isDateInPast,
   isDateInFuture,
+  convertTimestamp,
+  serializeDates,
   capitalizeFirst,
   capitalizeWords,
   truncateText,

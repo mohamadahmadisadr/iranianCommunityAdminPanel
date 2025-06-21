@@ -39,7 +39,7 @@ import { setRestaurants, setLoading, setError } from '../store/restaurantsSlice'
 import RestaurantForm from '../components/restaurants/RestaurantForm';
 import RestaurantViewModal from '../components/restaurants/RestaurantViewModal';
 import { RESTAURANT_CATEGORIES } from '../utils/constants';
-import { formatDate } from '../utils/helpers';
+import { formatDate, serializeDates } from '../utils/helpers';
 import toast from 'react-hot-toast';
 
 const Restaurants = () => {
@@ -60,12 +60,13 @@ const Restaurants = () => {
     dispatch(setLoading(true));
     try {
       const querySnapshot = await getDocs(collection(db, 'restaurants'));
-      const restaurantsData = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate(),
-        updatedAt: doc.data().updatedAt?.toDate(),
-      }));
+      const restaurantsData = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return serializeDates({
+          id: doc.id,
+          ...data,
+        });
+      });
       dispatch(setRestaurants(restaurantsData));
     } catch (error) {
       console.error('Error fetching restaurants:', error);

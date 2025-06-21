@@ -97,8 +97,8 @@ const JobForm = ({ open, job, onClose, onSuccess }) => {
     },
   });
 
-  const watchedRequirements = watch('requirements');
-  const watchedBenefits = watch('benefits');
+  const watchedRequirements = watch('requirements') || [];
+  const watchedBenefits = watch('benefits') || [];
 
   useEffect(() => {
     if (job) {

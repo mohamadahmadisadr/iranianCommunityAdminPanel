@@ -43,7 +43,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { setAnalytics, setLoading, setError } from '../store/analyticsSlice';
-import { formatDate } from '../utils/helpers';
+import { formatDate, serializeDates } from '../utils/helpers';
 import toast from 'react-hot-toast';
 
 const CHART_COLORS = ['#1976d2', '#dc004e', '#4caf50', '#ff9800', '#9c27b0', '#00bcd4'];
@@ -67,10 +67,7 @@ const Analytics = () => {
   const fetchAnalyticsData = async () => {
     dispatch(setLoading(true));
     try {
-      const now = new Date();
-      const daysAgo = new Date(now.getTime() - (parseInt(timeRange) * 24 * 60 * 60 * 1000));
-
-      // Fetch all collections data
+      // Fetch data from Firestore
       const [usersSnap, jobsSnap, eventsSnap, restaurantsSnap, cafesSnap] = await Promise.all([
         getDocs(collection(db, 'users')),
         getDocs(collection(db, 'jobs')),
@@ -79,47 +76,39 @@ const Analytics = () => {
         getDocs(collection(db, 'cafes')),
       ]);
 
-      // Process users data
+      // Convert snapshots to data with serialized dates
       const users = usersSnap.docs.map(doc => ({
         id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate(),
-        lastLogin: doc.data().lastLogin?.toDate(),
+        ...doc.data()
       }));
 
-      // Process jobs data
       const jobs = jobsSnap.docs.map(doc => ({
         id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate(),
+        ...doc.data()
       }));
 
-      // Process events data
       const events = eventsSnap.docs.map(doc => ({
         id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate(),
-        eventDate: doc.data().eventDate?.toDate(),
+        ...doc.data()
       }));
 
-      // Process restaurants data
       const restaurants = restaurantsSnap.docs.map(doc => ({
         id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate(),
+        ...doc.data()
       }));
 
-      // Process cafes data
       const cafes = cafesSnap.docs.map(doc => ({
         id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate(),
+        ...doc.data()
       }));
 
-      // Calculate analytics
-      const activeUsers = users.filter(user => 
-        user.lastLogin && user.lastLogin > daysAgo && user.status === 'active'
-      ).length;
+      // Calculate analytics data
+      const now = new Date();
+      const activeUsers = users.filter(user => {
+        const lastLogin = user.lastLogin ? (typeof user.lastLogin.toDate === 'function' ? user.lastLogin.toDate() : new Date(user.lastLogin)) : null;
+        const thirtyDaysAgo = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
+        return lastLogin && lastLogin > thirtyDaysAgo && user.status === 'active';
+      }).length;
 
       const pendingApprovals = [
         ...jobs.filter(job => job.status === 'pending'),
@@ -128,21 +117,7 @@ const Analytics = () => {
         ...cafes.filter(cafe => cafe.status === 'pending'),
       ].length;
 
-      // User registration trends
-      const userRegistrationTrends = generateTimeSeriesData(users, 'createdAt', timeRange);
-      
-      // Content creation trends
-      const contentCreationTrends = generateContentTrends(jobs, events, restaurants, cafes, timeRange);
-      
-      // Status distribution
-      const statusDistribution = calculateStatusDistribution(jobs, events, restaurants, cafes);
-      
-      // Category distribution
-      const categoryDistribution = calculateCategoryDistribution(jobs, events, restaurants, cafes);
-      
-      // Recent activity
-      const recentActivity = generateRecentActivity(users, jobs, events, restaurants, cafes);
-
+      // Use serializeDates to ensure all dates are serialized
       const analyticsData = {
         overview: {
           totalUsers: users.length,
@@ -153,17 +128,21 @@ const Analytics = () => {
           activeUsers,
           pendingApprovals,
         },
-        userRegistrationTrends,
-        contentCreationTrends,
-        statusDistribution,
-        categoryDistribution,
-        recentActivity,
+        userRegistrationTrends: generateTimeSeriesData(users, 'createdAt', timeRange),
+        contentCreationTrends: generateContentTrends(jobs, events, restaurants, cafes),
+        statusDistribution: calculateStatusDistribution(users, jobs, events),
+        categoryDistribution: calculateCategoryDistribution(jobs, events),
+        recentActivity: generateRecentActivity(users, jobs, events, restaurants, cafes),
         userRoleDistribution: calculateUserRoleDistribution(users),
         monthlyGrowth: calculateMonthlyGrowth(users, jobs, events),
       };
 
-      setRealTimeData(analyticsData.overview);
-      dispatch(setAnalytics(analyticsData));
+      // Serialize the entire analytics data before storing in Redux
+      const serializedData = serializeDates(analyticsData);
+      
+      setRealTimeData(serializedData.overview);
+      dispatch(setAnalytics(serializedData));
+      dispatch(setError(null));
     } catch (error) {
       console.error('Error fetching analytics:', error);
       dispatch(setError(error.message));
@@ -188,23 +167,30 @@ const Analytics = () => {
       const dayEnd = new Date(date.setHours(23, 59, 59, 999));
       
       const count = data.filter(item => {
-        const itemDate = item[dateField];
+        const itemDate = item[dateField] ? (typeof item[dateField].toDate === 'function' ? item[dateField].toDate() : new Date(item[dateField])) : null;
         return itemDate && itemDate >= dayStart && itemDate <= dayEnd;
       }).length;
       
       result.push({
-        date: dayStart.toISOString().split('T')[0],
+        date: dayStart.toISOString(),
         count,
         label: dayStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
       });
     }
     
-    return result;
+    return serializeDates(result);
   };
 
   const generateContentTrends = (jobs, events, restaurants, cafes, days) => {
     const result = [];
     const now = new Date();
+    
+    const getSerializedDate = (item) => {
+      if (!item.createdAt) return null;
+      return typeof item.createdAt.toDate === 'function' ? 
+        item.createdAt.toDate().toISOString() : 
+        new Date(item.createdAt).toISOString();
+    };
     
     for (let i = parseInt(days) - 1; i >= 0; i--) {
       const date = new Date(now.getTime() - (i * 24 * 60 * 60 * 1000));
@@ -212,27 +198,27 @@ const Analytics = () => {
       const dayEnd = new Date(date.setHours(23, 59, 59, 999));
       
       const jobsCount = jobs.filter(item => {
-        const itemDate = item.createdAt;
-        return itemDate && itemDate >= dayStart && itemDate <= dayEnd;
+        const itemDate = getSerializedDate(item);
+        return itemDate && itemDate >= dayStart.toISOString() && itemDate <= dayEnd.toISOString();
       }).length;
       
       const eventsCount = events.filter(item => {
-        const itemDate = item.createdAt;
-        return itemDate && itemDate >= dayStart && itemDate <= dayEnd;
+        const itemDate = getSerializedDate(item);
+        return itemDate && itemDate >= dayStart.toISOString() && itemDate <= dayEnd.toISOString();
       }).length;
       
       const restaurantsCount = restaurants.filter(item => {
-        const itemDate = item.createdAt;
-        return itemDate && itemDate >= dayStart && itemDate <= dayEnd;
+        const itemDate = getSerializedDate(item);
+        return itemDate && itemDate >= dayStart.toISOString() && itemDate <= dayEnd.toISOString();
       }).length;
       
       const cafesCount = cafes.filter(item => {
-        const itemDate = item.createdAt;
-        return itemDate && itemDate >= dayStart && itemDate <= dayEnd;
+        const itemDate = getSerializedDate(item);
+        return itemDate && itemDate >= dayStart.toISOString() && itemDate <= dayEnd.toISOString();
       }).length;
       
       result.push({
-        date: dayStart.toISOString().split('T')[0],
+        date: dayStart.toISOString(),
         jobs: jobsCount,
         events: eventsCount,
         restaurants: restaurantsCount,
@@ -241,7 +227,7 @@ const Analytics = () => {
       });
     }
     
-    return result;
+    return serializeDates(result);
   };
 
   const calculateStatusDistribution = (jobs, events, restaurants, cafes) => {
@@ -337,13 +323,21 @@ const Analytics = () => {
   const generateRecentActivity = (users, jobs, events, restaurants, cafes) => {
     const activities = [];
     
+    const getSerializedDate = (item) => {
+      if (!item.createdAt) return null;
+      if (typeof item.createdAt === 'string') return item.createdAt;
+      return typeof item.createdAt.toDate === 'function' ? 
+        item.createdAt.toDate().toISOString() : 
+        new Date(item.createdAt).toISOString();
+    };
+    
     // Recent users
     users.slice(-5).forEach(user => {
       activities.push({
         type: 'user',
         action: 'registered',
         item: user.displayName || user.email,
-        timestamp: user.createdAt,
+        timestamp: getSerializedDate(user),
         icon: 'people',
       });
     });
@@ -354,7 +348,7 @@ const Analytics = () => {
         type: 'job',
         action: 'posted',
         item: job.title,
-        timestamp: job.createdAt,
+        timestamp: getSerializedDate(job),
         icon: 'work',
       });
     });
@@ -365,13 +359,13 @@ const Analytics = () => {
         type: 'event',
         action: 'created',
         item: event.title,
-        timestamp: event.createdAt,
+        timestamp: getSerializedDate(event),
         icon: 'event',
       });
     });
     
     return activities
-      .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+      .sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''))
       .slice(0, 10);
   };
 

@@ -51,7 +51,7 @@ const schema = yup.object({
     postalCode: yup.string(),
   }),
   contactInfo: yup.object({
-    phone: yup.string().required('Phone number is required'),
+    phone: yup.string(), // Phone number is optional for cafes
     email: yup.string().email('Invalid email'),
     website: yup.string().url('Invalid URL'),
   }),
@@ -89,6 +89,7 @@ const CafeForm = ({ open, cafe, onClose, onSuccess }) => {
       description: '',
       specialty: '',
       category: '',
+      features: [],
       location: {
         address: '',
         city: '',
@@ -111,51 +112,19 @@ const CafeForm = ({ open, cafe, onClose, onSuccess }) => {
       },
       priceRange: '$',
       rating: 0,
-      features: [],
       status: 'pending',
       featured: false,
     },
   });
 
-  const watchedFeatures = watch('features');
+  const watchedFeatures = watch('features') || [];
 
   useEffect(() => {
     if (cafe) {
       reset({
         ...cafe,
+        features: Array.isArray(cafe.features) ? cafe.features : [],
         rating: cafe.rating || 0,
-      });
-    } else {
-      reset({
-        name: '',
-        description: '',
-        specialty: '',
-        category: '',
-        location: {
-          address: '',
-          city: '',
-          province: '',
-          postalCode: '',
-        },
-        contactInfo: {
-          phone: '',
-          email: '',
-          website: '',
-        },
-        hours: {
-          monday: '',
-          tuesday: '',
-          wednesday: '',
-          thursday: '',
-          friday: '',
-          saturday: '',
-          sunday: '',
-        },
-        priceRange: '$',
-        rating: 0,
-        features: [],
-        status: 'pending',
-        featured: false,
       });
     }
   }, [cafe, reset]);
@@ -193,14 +162,17 @@ const CafeForm = ({ open, cafe, onClose, onSuccess }) => {
   };
 
   const addFeature = () => {
-    if (featureInput.trim()) {
-      setValue('features', [...watchedFeatures, featureInput.trim()]);
-      setFeatureInput('');
-    }
+    if (!featureInput.trim()) return;
+    const currentFeatures = Array.isArray(watchedFeatures) ? watchedFeatures : [];
+    setValue('features', [...currentFeatures, featureInput.trim()]);
+    setFeatureInput('');
   };
 
   const removeFeature = (index) => {
-    setValue('features', watchedFeatures.filter((_, i) => i !== index));
+    const currentFeatures = Array.isArray(watchedFeatures) ? watchedFeatures : [];
+    const updatedFeatures = [...currentFeatures];
+    updatedFeatures.splice(index, 1);
+    setValue('features', updatedFeatures);
   };
 
   const daysOfWeek = [
@@ -218,7 +190,7 @@ const CafeForm = ({ open, cafe, onClose, onSuccess }) => {
       <DialogTitle>
         {cafe ? 'Edit Cafe' : 'Add New Cafe'}
       </DialogTitle>
-      
+
       <form onSubmit={handleSubmit(onSubmit)}>
         <DialogContent>
           <Grid container spacing={3}>
@@ -228,7 +200,7 @@ const CafeForm = ({ open, cafe, onClose, onSuccess }) => {
                 Basic Information
               </Typography>
             </Grid>
-            
+
             <Grid item xs={12} md={6}>
               <Controller
                 name="name"
@@ -244,7 +216,7 @@ const CafeForm = ({ open, cafe, onClose, onSuccess }) => {
                 )}
               />
             </Grid>
-            
+
             <Grid item xs={12} md={6}>
               <Controller
                 name="specialty"
@@ -261,7 +233,7 @@ const CafeForm = ({ open, cafe, onClose, onSuccess }) => {
                 )}
               />
             </Grid>
-            
+
             <Grid item xs={12}>
               <Controller
                 name="description"
@@ -279,7 +251,7 @@ const CafeForm = ({ open, cafe, onClose, onSuccess }) => {
                 )}
               />
             </Grid>
-            
+
             <Grid item xs={12} md={6}>
               <Controller
                 name="category"
@@ -298,7 +270,7 @@ const CafeForm = ({ open, cafe, onClose, onSuccess }) => {
                 )}
               />
             </Grid>
-            
+
             <Grid item xs={12} md={6}>
               <Controller
                 name="priceRange"
@@ -322,7 +294,7 @@ const CafeForm = ({ open, cafe, onClose, onSuccess }) => {
                 Location
               </Typography>
             </Grid>
-            
+
             <Grid item xs={12}>
               <Controller
                 name="location.address"
@@ -338,7 +310,7 @@ const CafeForm = ({ open, cafe, onClose, onSuccess }) => {
                 )}
               />
             </Grid>
-            
+
             <Grid item xs={12} md={4}>
               <Controller
                 name="location.city"
@@ -357,7 +329,7 @@ const CafeForm = ({ open, cafe, onClose, onSuccess }) => {
                 )}
               />
             </Grid>
-            
+
             <Grid item xs={12} md={4}>
               <Controller
                 name="location.province"
@@ -376,7 +348,7 @@ const CafeForm = ({ open, cafe, onClose, onSuccess }) => {
                 )}
               />
             </Grid>
-            
+
             <Grid item xs={12} md={4}>
               <Controller
                 name="location.postalCode"
@@ -398,7 +370,7 @@ const CafeForm = ({ open, cafe, onClose, onSuccess }) => {
                 Contact Information
               </Typography>
             </Grid>
-            
+
             <Grid item xs={12} md={4}>
               <Controller
                 name="contactInfo.phone"
@@ -407,14 +379,15 @@ const CafeForm = ({ open, cafe, onClose, onSuccess }) => {
                   <TextField
                     {...field}
                     fullWidth
-                    label="Phone Number"
+                    label="Phone Number (Optional)"
+                    placeholder="(555) 123-4567"
                     error={!!errors.contactInfo?.phone}
                     helperText={errors.contactInfo?.phone?.message}
                   />
                 )}
               />
             </Grid>
-            
+
             <Grid item xs={12} md={4}>
               <Controller
                 name="contactInfo.email"
@@ -431,7 +404,7 @@ const CafeForm = ({ open, cafe, onClose, onSuccess }) => {
                 )}
               />
             </Grid>
-            
+
             <Grid item xs={12} md={4}>
               <Controller
                 name="contactInfo.website"
@@ -456,7 +429,7 @@ const CafeForm = ({ open, cafe, onClose, onSuccess }) => {
                 Format: "7:00 AM - 9:00 PM" or "Closed"
               </Typography>
             </Grid>
-            
+
             {daysOfWeek.map((day) => (
               <Grid item xs={12} md={6} key={day.key}>
                 <Controller
@@ -493,7 +466,7 @@ const CafeForm = ({ open, cafe, onClose, onSuccess }) => {
                 </Button>
               </Box>
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                {watchedFeatures.map((feature, index) => (
+                {Array.isArray(watchedFeatures) && watchedFeatures.map((feature, index) => (
                   <Chip
                     key={index}
                     label={feature}
@@ -509,7 +482,7 @@ const CafeForm = ({ open, cafe, onClose, onSuccess }) => {
                 Rating & Status
               </Typography>
             </Grid>
-            
+
             <Grid item xs={12} md={6}>
               <Controller
                 name="rating"
@@ -531,7 +504,7 @@ const CafeForm = ({ open, cafe, onClose, onSuccess }) => {
                 )}
               />
             </Grid>
-            
+
             <Grid item xs={12} md={6}>
               <Controller
                 name="status"
@@ -550,7 +523,7 @@ const CafeForm = ({ open, cafe, onClose, onSuccess }) => {
                 )}
               />
             </Grid>
-            
+
             <Grid item xs={12}>
               <Controller
                 name="featured"
@@ -565,7 +538,7 @@ const CafeForm = ({ open, cafe, onClose, onSuccess }) => {
             </Grid>
           </Grid>
         </DialogContent>
-        
+
         <DialogActions>
           <Button onClick={onClose}>Cancel</Button>
           <Button type="submit" variant="contained" disabled={loading}>

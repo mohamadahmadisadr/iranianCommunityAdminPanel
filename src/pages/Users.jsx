@@ -38,7 +38,7 @@ import { db } from '../firebaseConfig';
 import { setUsers, setLoading, setError } from '../store/usersSlice';
 import UserForm from '../components/users/UserForm';
 import UserViewModal from '../components/users/UserViewModal';
-import { formatDate } from '../utils/helpers';
+import { formatDate, serializeDates } from '../utils/helpers';
 import toast from 'react-hot-toast';
 
 const Users = () => {
@@ -58,14 +58,15 @@ const Users = () => {
     dispatch(setLoading(true));
     try {
       const querySnapshot = await getDocs(collection(db, 'users'));
-      const usersData = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        registrationDate: doc.data().registrationDate?.toDate() || doc.data().createdAt?.toDate(),
-        lastLogin: doc.data().lastLogin?.toDate(),
-        createdAt: doc.data().createdAt?.toDate(),
-        updatedAt: doc.data().updatedAt?.toDate(),
-      }));
+      const usersData = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return serializeDates({
+          id: doc.id,
+          ...data,
+          // Ensure registrationDate fallback to createdAt if not present
+          registrationDate: data.registrationDate || data.createdAt,
+        });
+      });
       dispatch(setUsers(usersData));
     } catch (error) {
       console.error('Error fetching users:', error);

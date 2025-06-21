@@ -1,0 +1,15 @@
+export const logError = (error, errorInfo) => {
+  // Log to console in development
+  if (process.env.NODE_ENV === 'development') {
+    console.error('Error:', error);
+    console.error('Error Info:', errorInfo);
+  }
+
+  // Here you can implement your error logging service
+  // For example, sending to a logging service or your backend
+  // Example:
+  // await fetch('/api/log-error', {
+  //   method: 'POST',
+  //   body: JSON.stringify({ error, errorInfo })
+  // });
+};

@@ -20,6 +20,18 @@ export default defineConfig({
       }
     }
   },
+  esbuild: {
+    loader: 'jsx',
+    include: /src\/.*\.[tj]sx?$/,
+    exclude: [],
+  },
+  optimizeDeps: {
+    esbuildOptions: {
+      loader: {
+        '.js': 'jsx',
+      },
+    },
+  },
   define: {
     'process.env': {}
   }

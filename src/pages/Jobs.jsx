@@ -38,7 +38,7 @@ import { setJobs, setLoading, setError } from '../store/jobsSlice';
 import JobForm from '../components/jobs/JobForm';
 import JobViewModal from '../components/jobs/JobViewModal';
 import { JOB_CATEGORIES } from '../utils/constants';
-import { formatDate } from '../utils/helpers';
+import { formatDate, serializeDates } from '../utils/helpers';
 import toast from 'react-hot-toast';
 
 const Jobs = () => {
@@ -59,13 +59,13 @@ const Jobs = () => {
     dispatch(setLoading(true));
     try {
       const querySnapshot = await getDocs(collection(db, 'jobs'));
-      const jobsData = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate(),
-        updatedAt: doc.data().updatedAt?.toDate(),
-        expiryDate: doc.data().expiryDate?.toDate(),
-      }));
+      const jobsData = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return serializeDates({
+          id: doc.id,
+          ...data,
+        });
+      });
       dispatch(setJobs(jobsData));
     } catch (error) {
       console.error('Error fetching jobs:', error);

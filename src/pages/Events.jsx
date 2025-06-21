@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Card,
@@ -29,7 +29,6 @@ import {
   Delete,
   Visibility,
   Search,
-  Event as EventIcon,
 } from '@mui/icons-material';
 import { useSelector, useDispatch } from 'react-redux';
 import { collection, getDocs, deleteDoc, doc } from 'firebase/firestore';
@@ -54,28 +53,63 @@ const Events = () => {
   const [formDialog, setFormDialog] = useState({ open: false, event: null });
   const [viewDialog, setViewDialog] = useState({ open: false, event: null });
 
-  // Fetch events from Firestore
-  const fetchEvents = async () => {
+  // Fetch events from Firestore with improved error handling
+  const fetchEvents = useCallback(async () => {
     dispatch(setLoading(true));
+    dispatch(setError(null));
+
     try {
       const querySnapshot = await getDocs(collection(db, 'events'));
-      const eventsData = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate(),
-        updatedAt: doc.data().updatedAt?.toDate(),
-        eventDate: doc.data().eventDate?.toDate(),
-        endDate: doc.data().endDate?.toDate(),
-      }));
+      const eventsData = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        // Helper function to safely convert Firestore timestamp to ISO string
+        const convertTimestamp = (timestamp) => {
+          if (!timestamp) return null;
+          try {
+            if (timestamp.toDate instanceof Function) {
+              return timestamp.toDate().toISOString();
+            }
+            if (timestamp instanceof Date) {
+              return timestamp.toISOString();
+            }
+            if (typeof timestamp === 'string') {
+              const date = new Date(timestamp);
+              return isNaN(date.getTime()) ? null : date.toISOString();
+            }
+            return null;
+          } catch (error) {
+            console.warn('Error converting timestamp:', error);
+            return null;
+          }
+        };
+
+        return {
+          id: doc.id,
+          ...data,
+          // Convert all date fields to ISO strings, with proper fallbacks
+          eventDate: convertTimestamp(data.eventDate) || convertTimestamp(data.date),
+          endDate: convertTimestamp(data.endDate),
+          createdAt: convertTimestamp(data.createdAt),
+          updatedAt: convertTimestamp(data.updatedAt),
+          // Ensure required fields have defaults
+          status: data.status || 'pending',
+          category: data.category || 'Other',
+          attendees: data.attendees || 0,
+        };
+      });
+
       dispatch(setEvents(eventsData));
     } catch (error) {
       console.error('Error fetching events:', error);
-      dispatch(setError(error.message));
-      toast.error('Failed to fetch events');
+      const errorMessage = error.code === 'permission-denied'
+        ? 'You do not have permission to access events'
+        : 'Failed to fetch events. Please try again.';
+      dispatch(setError(errorMessage));
+      toast.error(errorMessage);
     } finally {
       dispatch(setLoading(false));
     }
-  };
+  }, [dispatch]);
 
   useEffect(() => {
     fetchEvents();
@@ -97,6 +131,7 @@ const Events = () => {
   };
 
   const handleEdit = () => {
+    console.log('Opening edit form with event:', selectedEvent);
     setFormDialog({ open: true, event: selectedEvent });
     handleMenuClose();
   };
@@ -107,13 +142,22 @@ const Events = () => {
   };
 
   const handleConfirmDelete = async () => {
+    if (!confirmDialog.event?.id) {
+      toast.error('Invalid event selected');
+      setConfirmDialog({ open: false, event: null });
+      return;
+    }
+
     try {
       await deleteDoc(doc(db, 'events', confirmDialog.event.id));
       await fetchEvents(); // Refresh the list
       toast.success('Event deleted successfully');
     } catch (error) {
       console.error('Error deleting event:', error);
-      toast.error('Failed to delete event');
+      const errorMessage = error.code === 'permission-denied'
+        ? 'You do not have permission to delete this event'
+        : 'Failed to delete event. Please try again.';
+      toast.error(errorMessage);
     }
     setConfirmDialog({ open: false, event: null });
   };
@@ -123,6 +167,7 @@ const Events = () => {
   };
 
   const handleFormSuccess = () => {
+    console.log('Form success callback triggered');
     setFormDialog({ open: false, event: null });
     fetchEvents(); // Refresh the list
   };
@@ -143,6 +188,7 @@ const Events = () => {
   };
 
   const isEventPast = (eventDate) => {
+    if (!eventDate) return false;
     return new Date(eventDate) < new Date();
   };
 
@@ -157,7 +203,7 @@ const Events = () => {
             {params.value}
           </Typography>
           <Typography variant="caption" color="text.secondary">
-            {params.row.organizer}
+            {typeof params.row.organizer === 'object' ? params.row.organizer.name : params.row.organizer}
           </Typography>
         </Box>
       ),
@@ -198,12 +244,18 @@ const Events = () => {
     {
       field: 'attendees',
       headerName: 'Attendees',
-      width: 100,
-      renderCell: (params) => (
-        <Typography variant="body2">
-          {params.value || 0}
-        </Typography>
-      ),
+      width: 120,
+      renderCell: (params) => {
+        const attendees = params.value || 0;
+        const maxAttendees = params.row.maxAttendees;
+
+        return (
+          <Typography variant="body2">
+            {attendees}
+            {maxAttendees && maxAttendees > 0 ? ` / ${maxAttendees}` : ' (unlimited)'}
+          </Typography>
+        );
+      },
     },
     {
       field: 'status',
@@ -236,11 +288,17 @@ const Events = () => {
   ];
 
   const filteredEvents = events.filter(event => {
-    const matchesSearch = event.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         event.organizer?.toLowerCase().includes(searchTerm.toLowerCase());
+    const searchLower = searchTerm.toLowerCase();
+    const matchesSearch = !searchTerm ||
+      event.title?.toLowerCase().includes(searchLower) ||
+      event.organizer?.toLowerCase().includes(searchLower) ||
+      event.description?.toLowerCase().includes(searchLower) ||
+      event.location?.venue?.toLowerCase().includes(searchLower) ||
+      event.location?.city?.toLowerCase().includes(searchLower);
+
     const matchesStatus = !statusFilter || event.status === statusFilter;
     const matchesCategory = !categoryFilter || event.category === categoryFilter;
-    
+
     return matchesSearch && matchesStatus && matchesCategory;
   });
 
@@ -321,10 +379,14 @@ const Events = () => {
         <DataGrid
           rows={filteredEvents}
           columns={columns}
-          pageSize={25}
-          rowsPerPageOptions={[25, 50, 100]}
+          initialState={{
+            pagination: {
+              paginationModel: { page: 0, pageSize: 25 },
+            },
+          }}
+          pageSizeOptions={[25, 50, 100]}
           loading={loading}
-          disableSelectionOnClick
+          disableRowSelectionOnClick
           autoHeight
           sx={{
             border: 'none',
@@ -332,6 +394,8 @@ const Events = () => {
               borderBottom: '1px solid #f0f0f0',
             },
           }}
+          getRowId={(row) => row.id}
+          aria-label="Events data grid"
         />
       </Card>
 

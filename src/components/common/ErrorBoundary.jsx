@@ -39,9 +39,6 @@ class ErrorBoundary extends React.Component {
     
     // Log error to console for debugging
     console.error('ErrorBoundary caught an error:', error, errorInfo);
-    
-    // You can also log the error to an error reporting service here
-    // logErrorToService(error, errorInfo);
   }
 
   handleRetry = () => {
@@ -125,7 +122,7 @@ class ErrorBoundary extends React.Component {
                 >
                   Refresh Page
                 </Button>
-                
+
                 <Button
                   variant="text"
                   startIcon={<Home />}
@@ -147,10 +144,21 @@ class ErrorBoundary extends React.Component {
                     overflow: 'auto',
                     maxHeight: 200,
                   }}>
-                    {this.state.error && this.state.error.toString()}
-                    {this.state.errorInfo.componentStack}
+                    {this.state.error ? 
+                      (typeof this.state.error === 'object' ? 
+                        JSON.stringify(this.state.error, null, 2) : 
+                        this.state.error.toString()
+                      ) : 'No error message available'
+                    }
+                    {'\n\n'}
+                    {this.state.errorInfo ? 
+                      (typeof this.state.errorInfo === 'object' ?
+                        JSON.stringify(this.state.errorInfo, null, 2) :
+                        this.state.errorInfo.toString()
+                      ) : 'No component stack available'
+                    }
                   </Typography>
-                  <Typography variant="caption" color="text.secondary">
+                  <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
                     Retry count: {this.state.retryCount}
                   </Typography>
                 </Box>

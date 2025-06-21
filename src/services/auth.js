@@ -57,26 +57,46 @@ export const signInWithGoogle = async () => {
       userData = userDoc.data();
 
       // Update last login and profile info
+      const currentDate = new Date();
       await setDoc(userDocRef, {
         ...userData,
-        lastLogin: new Date(),
+        lastLogin: currentDate,
         email: user.email,
         profileImage: user.photoURL,
-        updatedAt: new Date(),
+        updatedAt: currentDate,
       }, { merge: true });
+
+      // Convert dates to ISO strings for Redux store
+      userData = {
+        ...userData,
+        lastLogin: currentDate.toISOString(),
+        updatedAt: currentDate.toISOString(),
+      };
 
     } else {
       // Create new admin user
-      userData = {
+      const currentDate = new Date();
+      const firestoreData = {
         email: user.email,
         firstName: user.displayName?.split(' ')[0] || 'Admin',
         lastName: user.displayName?.split(' ').slice(1).join(' ') || 'User',
         role: 'admin', // Default role for new admin users
         status: 'active',
         profileImage: user.photoURL,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        lastLogin: new Date(),
+        createdAt: currentDate,
+        updatedAt: currentDate,
+        lastLogin: currentDate,
+      };
+
+      // Set data in Firestore
+      await setDoc(userDocRef, firestoreData);
+
+      // Convert dates to ISO strings for Redux store
+      userData = {
+        ...firestoreData,
+        createdAt: currentDate.toISOString(),
+        updatedAt: currentDate.toISOString(),
+        lastLogin: currentDate.toISOString(),
       };
 
       await setDoc(userDocRef, userData);
@@ -126,12 +146,21 @@ export const onAuthStateChange = (callback) => {
 
           // Check if user has admin privileges
           if (['admin', 'super_admin', 'moderator', 'content_manager'].includes(userData.role)) {
+            // Convert Firestore timestamps to ISO strings for Redux
+            const convertedData = {
+              ...userData,
+              createdAt: userData.createdAt?.toDate()?.toISOString(),
+              updatedAt: userData.updatedAt?.toDate()?.toISOString(),
+              lastLogin: userData.lastLogin?.toDate()?.toISOString(),
+              registrationDate: userData.registrationDate?.toDate()?.toISOString(),
+            };
+            
             callback({
               uid: user.uid,
               email: user.email,
               displayName: user.displayName,
               photoURL: user.photoURL,
-              ...userData
+              ...convertedData
             });
           } else {
             await signOut(auth);

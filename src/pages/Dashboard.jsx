@@ -30,7 +30,7 @@ import {
 import { useSelector } from 'react-redux';
 import { collection, getDocs, query, orderBy, limit, where } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
-import { formatDate } from '../utils/helpers';
+import { formatDate, formatRelativeTime, convertTimestamp } from '../utils/helpers';
 import { firestoreWithRetry } from '../utils/firebaseRetry';
 import toast from 'react-hot-toast';
 
@@ -75,8 +75,9 @@ const Dashboard = () => {
   // Fetch real dashboard data from Firebase
   const fetchDashboardData = async () => {
     setLoading(true);
+    setError(null);
+    
     try {
-      // Fetch all collections data with retry
       const [usersSnap, jobsSnap, eventsSnap, restaurantsSnap, cafesSnap] = await firestoreWithRetry(
         () => Promise.all([
           getDocs(collection(db, 'users')),
@@ -88,41 +89,43 @@ const Dashboard = () => {
         'Failed to load dashboard data'
       );
 
-      // Process users data
-      const users = usersSnap.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate(),
-        lastLogin: doc.data().lastLogin?.toDate(),
-      }));
+      // Process users data with safe timestamp conversion
+      const users = usersSnap.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          createdAt: convertTimestamp(data.createdAt),
+          lastLogin: convertTimestamp(data.lastLogin),
+        };
+      }).filter(user => user.createdAt !== null); // Filter out entries with invalid dates
 
       // Process other collections
-      const jobs = jobsSnap.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate(),
-      }));
+      const processCollection = (snapshot, additionalFields = {}) => {
+        return snapshot.docs
+          .map(doc => {
+            const data = doc.data();
+            return {
+              id: doc.id,
+              ...data,
+              createdAt: convertTimestamp(data.createdAt),
+              ...Object.fromEntries(
+                Object.entries(additionalFields).map(([key, field]) => [
+                  key,
+                  convertTimestamp(data[field])
+                ])
+              )
+            };
+          })
+          .filter(item => item.createdAt !== null);
+      };
 
-      const events = eventsSnap.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate(),
-        eventDate: doc.data().eventDate?.toDate(),
-      }));
+      const jobs = processCollection(jobsSnap);
+      const events = processCollection(eventsSnap, { eventDate: 'eventDate' });
+      const restaurants = processCollection(restaurantsSnap);
+      const cafes = processCollection(cafesSnap);
 
-      const restaurants = restaurantsSnap.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate(),
-      }));
-
-      const cafes = cafesSnap.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate(),
-      }));
-
-      // Calculate real statistics
+      // Calculate statistics
       const now = new Date();
       const last30Days = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
 
@@ -137,7 +140,6 @@ const Dashboard = () => {
         ...cafes.filter(cafe => cafe.status === 'pending'),
       ].length;
 
-      // Update stats with real data
       setStats({
         totalUsers: users.length,
         totalJobs: jobs.length,
@@ -148,80 +150,32 @@ const Dashboard = () => {
         activeUsers,
       });
 
-      // Generate recent activity from real data
-      const activities = [];
+      // Generate recent activity
+      const processRecentItems = (items, type, titlePrefix, descriptionField) => {
+        return items
+          .sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0))
+          .slice(0, 3)
+          .map(item => ({
+            id: `${type}-${item.id}`,
+            type,
+            title: titlePrefix,
+            description: item[descriptionField] || 'No title',
+            time: formatRelativeTime(item.createdAt),
+            status: item.status || 'pending',
+            timestamp: item.createdAt,
+          }));
+      };
 
-      // Recent users (last 10)
-      const recentUsers = users
-        .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
-        .slice(0, 3);
+      const activities = [
+        ...processRecentItems(users, 'user', 'New user registration', 'displayName'),
+        ...processRecentItems(jobs, 'job', 'Job posting submitted', 'title'),
+        ...processRecentItems(events, 'event', 'Event created', 'title'),
+        ...processRecentItems(restaurants, 'restaurant', 'Restaurant listing added', 'name')
+      ];
 
-      recentUsers.forEach(user => {
-        activities.push({
-          id: `user-${user.id}`,
-          type: 'user',
-          title: 'New user registration',
-          description: user.displayName || user.email,
-          time: getTimeAgo(user.createdAt),
-          status: user.status || 'active',
-          timestamp: user.createdAt,
-        });
-      });
-
-      // Recent jobs (last 5)
-      const recentJobs = jobs
-        .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
-        .slice(0, 3);
-
-      recentJobs.forEach(job => {
-        activities.push({
-          id: `job-${job.id}`,
-          type: 'job',
-          title: 'Job posting submitted',
-          description: job.title,
-          time: getTimeAgo(job.createdAt),
-          status: job.status || 'pending',
-          timestamp: job.createdAt,
-        });
-      });
-
-      // Recent events (last 5)
-      const recentEvents = events
-        .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
-        .slice(0, 3);
-
-      recentEvents.forEach(event => {
-        activities.push({
-          id: `event-${event.id}`,
-          type: 'event',
-          title: 'Event created',
-          description: event.title,
-          time: getTimeAgo(event.createdAt),
-          status: event.status || 'pending',
-          timestamp: event.createdAt,
-        });
-      });
-
-      // Recent restaurants (last 3)
-      const recentRestaurants = restaurants
-        .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
-        .slice(0, 2);
-
-      recentRestaurants.forEach(restaurant => {
-        activities.push({
-          id: `restaurant-${restaurant.id}`,
-          type: 'restaurant',
-          title: 'Restaurant listing added',
-          description: restaurant.name,
-          time: getTimeAgo(restaurant.createdAt),
-          status: restaurant.status || 'pending',
-          timestamp: restaurant.createdAt,
-        });
-      });
-
-      // Sort activities by timestamp and take the most recent 8
+      // Sort activities by timestamp
       const sortedActivities = activities
-        .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+        .sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0))
         .slice(0, 8);
 
       setRecentActivity(sortedActivities);
@@ -229,27 +183,10 @@ const Dashboard = () => {
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
       setError('Failed to load dashboard data. Please try again.');
-      // Error message already shown by firestoreWithRetry
+      toast.error('Failed to load dashboard data');
     } finally {
       setLoading(false);
     }
-  };
-
-  // Helper function to calculate time ago
-  const getTimeAgo = (date) => {
-    if (!date) return 'Unknown';
-
-    const now = new Date();
-    const diffInMs = now - date;
-    const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
-    const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
-    const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
-
-    if (diffInMinutes < 1) return 'Just now';
-    if (diffInMinutes < 60) return `${diffInMinutes} minute${diffInMinutes > 1 ? 's' : ''} ago`;
-    if (diffInHours < 24) return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`;
-    if (diffInDays < 7) return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`;
-    return formatDate(date);
   };
 
   useEffect(() => {
@@ -430,6 +367,7 @@ const Dashboard = () => {
                           </Typography>
                         </Box>
                       }
+                      secondaryTypographyProps={{ component: 'div' }}
                     />
                   </ListItem>
                 ))}

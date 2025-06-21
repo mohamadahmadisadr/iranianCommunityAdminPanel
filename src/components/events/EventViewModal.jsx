@@ -1,4 +1,3 @@
-import React from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -17,14 +16,12 @@ import {
   Edit,
   Close,
   LocationOn,
-  Event as EventIcon,
   AttachMoney,
   Email,
   Phone,
   Language,
   CalendarToday,
   People,
-  AccessTime,
   VideoCall,
 } from '@mui/icons-material';
 import { formatDate, formatCurrency } from '../../utils/helpers';
@@ -48,12 +45,15 @@ const EventViewModal = ({ open, event, onClose, onEdit }) => {
   };
 
   const isEventPast = (eventDate) => {
+    if (!eventDate) return false;
     return new Date(eventDate) < new Date();
   };
 
   const formatEventDateTime = (date, time) => {
     if (!date) return '';
-    const dateStr = formatDate(date);
+    // Handle both date objects and ISO strings
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    const dateStr = formatDate(dateObj);
     return time ? `${dateStr} at ${time}` : dateStr;
   };
 
@@ -160,22 +160,23 @@ const EventViewModal = ({ open, event, onClose, onEdit }) => {
           </Grid>
 
           {/* Attendees */}
-          {(event.attendees !== undefined || event.maxAttendees) && (
-            <Grid item xs={12} md={6}>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <People sx={{ mr: 1, color: 'text.secondary' }} />
-                <Box>
-                  <Typography variant="subtitle1" fontWeight="medium">
-                    Attendees
-                  </Typography>
-                  <Typography variant="body2">
-                    {event.attendees || 0}
-                    {event.maxAttendees && ` / ${event.maxAttendees}`} registered
-                  </Typography>
-                </Box>
+          <Grid item xs={12} md={6}>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+              <People sx={{ mr: 1, color: 'text.secondary' }} />
+              <Box>
+                <Typography variant="subtitle1" fontWeight="medium">
+                  Attendees
+                </Typography>
+                <Typography variant="body2">
+                  {event.attendees || 0}
+                  {event.maxAttendees && event.maxAttendees > 0
+                    ? ` / ${event.maxAttendees} registered`
+                    : ' registered (unlimited capacity)'
+                  }
+                </Typography>
               </Box>
-            </Grid>
-          )}
+            </Box>
+          </Grid>
 
           {/* Price */}
           {event.ticketPrice !== undefined && (

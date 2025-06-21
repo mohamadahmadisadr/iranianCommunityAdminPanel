@@ -112,7 +112,12 @@ function App() {
         {/* Error boundary to catch and handle JavaScript errors gracefully */}
         <ErrorBoundary>
           {/* React Router for client-side navigation */}
-          <Router>
+          <Router
+            future={{
+              v7_startTransition: true,
+              v7_relativeSplatPath: true,
+            }}
+          >
             {/* Authentication wrapper to manage user sessions */}
             <AuthWrapper>
               <Routes>

@@ -38,7 +38,7 @@ import { db } from '../firebaseConfig';
 import { setCafes, setLoading, setError } from '../store/cafesSlice';
 import CafeForm from '../components/cafes/CafeForm';
 import CafeViewModal from '../components/cafes/CafeViewModal';
-import { formatDate } from '../utils/helpers';
+import { formatDate, serializeDates } from '../utils/helpers';
 import toast from 'react-hot-toast';
 
 const CAFE_CATEGORIES = [
@@ -71,12 +71,13 @@ const Cafes = () => {
     dispatch(setLoading(true));
     try {
       const querySnapshot = await getDocs(collection(db, 'cafes'));
-      const cafesData = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate(),
-        updatedAt: doc.data().updatedAt?.toDate(),
-      }));
+      const cafesData = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return serializeDates({
+          id: doc.id,
+          ...data,
+        });
+      });
       dispatch(setCafes(cafesData));
     } catch (error) {
       console.error('Error fetching cafes:', error);

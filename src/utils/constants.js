@@ -7,6 +7,14 @@ export const USER_ROLES = {
   USER: 'user',
 };
 
+// Date Formats
+export const DATE_FORMATS = {
+  DISPLAY: 'MMM D, YYYY',
+  ISO: 'YYYY-MM-DD',
+  TIMESTAMP: 'YYYY-MM-DD HH:mm:ss',
+  TIME: 'HH:mm',
+};
+
 // User Status
 export const USER_STATUS = {
   ACTIVE: 'active',
@@ -153,14 +161,6 @@ export const COLLECTIONS = {
   SETTINGS: 'settings',
   CATEGORIES: 'categories',
   ANALYTICS: 'analytics',
-};
-
-// Date Formats
-export const DATE_FORMATS = {
-  DISPLAY: 'MMM DD, YYYY',
-  DISPLAY_WITH_TIME: 'MMM DD, YYYY HH:mm',
-  INPUT: 'YYYY-MM-DD',
-  INPUT_WITH_TIME: 'YYYY-MM-DDTHH:mm',
 };
 
 // Chart Colors

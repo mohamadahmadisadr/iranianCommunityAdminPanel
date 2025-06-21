@@ -40,7 +40,7 @@ const schema = yup.object({
     postalCode: yup.string(),
   }),
   contactInfo: yup.object({
-    phone: yup.string().required('Phone number is required'),
+    phone: yup.string(), // Phone number is optional for restaurants
     email: yup.string().email('Invalid email'),
     website: yup.string().url('Invalid URL'),
   }),
@@ -207,7 +207,7 @@ const RestaurantForm = ({ open, restaurant, onClose, onSuccess }) => {
       <DialogTitle>
         {restaurant ? 'Edit Restaurant' : 'Add New Restaurant'}
       </DialogTitle>
-      
+
       <form onSubmit={handleSubmit(onSubmit)}>
         <DialogContent>
           <Grid container spacing={3}>
@@ -217,7 +217,7 @@ const RestaurantForm = ({ open, restaurant, onClose, onSuccess }) => {
                 Basic Information
               </Typography>
             </Grid>
-            
+
             <Grid item xs={12} md={6}>
               <Controller
                 name="name"
@@ -233,7 +233,7 @@ const RestaurantForm = ({ open, restaurant, onClose, onSuccess }) => {
                 )}
               />
             </Grid>
-            
+
             <Grid item xs={12} md={6}>
               <Controller
                 name="cuisine"
@@ -250,7 +250,7 @@ const RestaurantForm = ({ open, restaurant, onClose, onSuccess }) => {
                 )}
               />
             </Grid>
-            
+
             <Grid item xs={12}>
               <Controller
                 name="description"
@@ -268,7 +268,7 @@ const RestaurantForm = ({ open, restaurant, onClose, onSuccess }) => {
                 )}
               />
             </Grid>
-            
+
             <Grid item xs={12} md={6}>
               <Controller
                 name="category"
@@ -287,7 +287,7 @@ const RestaurantForm = ({ open, restaurant, onClose, onSuccess }) => {
                 )}
               />
             </Grid>
-            
+
             <Grid item xs={12} md={6}>
               <Controller
                 name="priceRange"
@@ -312,7 +312,7 @@ const RestaurantForm = ({ open, restaurant, onClose, onSuccess }) => {
                 Location
               </Typography>
             </Grid>
-            
+
             <Grid item xs={12}>
               <Controller
                 name="location.address"
@@ -328,7 +328,7 @@ const RestaurantForm = ({ open, restaurant, onClose, onSuccess }) => {
                 )}
               />
             </Grid>
-            
+
             <Grid item xs={12} md={4}>
               <Controller
                 name="location.city"
@@ -347,7 +347,7 @@ const RestaurantForm = ({ open, restaurant, onClose, onSuccess }) => {
                 )}
               />
             </Grid>
-            
+
             <Grid item xs={12} md={4}>
               <Controller
                 name="location.province"
@@ -366,7 +366,7 @@ const RestaurantForm = ({ open, restaurant, onClose, onSuccess }) => {
                 )}
               />
             </Grid>
-            
+
             <Grid item xs={12} md={4}>
               <Controller
                 name="location.postalCode"
@@ -388,7 +388,7 @@ const RestaurantForm = ({ open, restaurant, onClose, onSuccess }) => {
                 Contact Information
               </Typography>
             </Grid>
-            
+
             <Grid item xs={12} md={4}>
               <Controller
                 name="contactInfo.phone"
@@ -397,14 +397,15 @@ const RestaurantForm = ({ open, restaurant, onClose, onSuccess }) => {
                   <TextField
                     {...field}
                     fullWidth
-                    label="Phone Number"
+                    label="Phone Number (Optional)"
+                    placeholder="(555) 123-4567"
                     error={!!errors.contactInfo?.phone}
                     helperText={errors.contactInfo?.phone?.message}
                   />
                 )}
               />
             </Grid>
-            
+
             <Grid item xs={12} md={4}>
               <Controller
                 name="contactInfo.email"
@@ -421,7 +422,7 @@ const RestaurantForm = ({ open, restaurant, onClose, onSuccess }) => {
                 )}
               />
             </Grid>
-            
+
             <Grid item xs={12} md={4}>
               <Controller
                 name="contactInfo.website"
@@ -446,7 +447,7 @@ const RestaurantForm = ({ open, restaurant, onClose, onSuccess }) => {
                 Format: "9:00 AM - 10:00 PM" or "Closed"
               </Typography>
             </Grid>
-            
+
             {daysOfWeek.map((day) => (
               <Grid item xs={12} md={6} key={day.key}>
                 <Controller
@@ -499,7 +500,7 @@ const RestaurantForm = ({ open, restaurant, onClose, onSuccess }) => {
                 Rating & Status
               </Typography>
             </Grid>
-            
+
             <Grid item xs={12} md={6}>
               <Controller
                 name="rating"
@@ -521,7 +522,7 @@ const RestaurantForm = ({ open, restaurant, onClose, onSuccess }) => {
                 )}
               />
             </Grid>
-            
+
             <Grid item xs={12} md={6}>
               <Controller
                 name="status"
@@ -540,7 +541,7 @@ const RestaurantForm = ({ open, restaurant, onClose, onSuccess }) => {
                 )}
               />
             </Grid>
-            
+
             <Grid item xs={12}>
               <Controller
                 name="featured"
@@ -555,7 +556,7 @@ const RestaurantForm = ({ open, restaurant, onClose, onSuccess }) => {
             </Grid>
           </Grid>
         </DialogContent>
-        
+
         <DialogActions>
           <Button onClick={onClose}>Cancel</Button>
           <Button type="submit" variant="contained" disabled={loading}>
